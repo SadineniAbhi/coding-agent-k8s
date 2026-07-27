@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coding-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coding-agent-sandbox-manager
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coding-agent-sandbox-manager
+subjects:
+  - kind: ServiceAccount
+    name: coding-agent
+roleRef:
+  kind: Role
+  name: coding-agent-sandbox-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coding-agent
+  labels:
+    app: coding-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coding-agent
+  template:
+    metadata:
+      labels:
+        app: coding-agent
+    spec:
+      serviceAccountName: coding-agent
+      containers:
+        - name: coding-agent
+          image: codingagent:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PATH_PREFIX
+              value: "/coding-agent"
+            - name: AUTH0_DOMAIN
+              value: "dev-xd0ga8sh216d7yr0.us.auth0.com"
+            - name: AUTH0_AUDIENCE
+              value: "https://fastapibackend"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: SANDBOX_EXPIRY_TIME_SEC
+              value: "600"
+            - name: SANDBOX_IMAGE
+              value: "sandbox"
+            - name: LANGFUSE_HOST
+              value: "http://my-langfuse-web.default.svc.cluster.local:3000"
+            - name: LANGFUSE_PUBLIC_KEY
+              value: "pk-lf-9d8a1e60-ed92-44d2-8682-df052d974a19"
+            - name: LANGFUSE_SECRET_KEY
+              value: "sk-lf-58f1630c-8fdc-4f7c-b4ed-543bcdd8284a"
+            - name: FRONTEND_ORIGIN
+              value: "http://localhost:5173"
+            - name: GITHUB_APP_NAME
+              value: "AbhiCodeAgent"
+            - name: GITHUB_APP_ID
+              value: "4398013"
+            - name: GITHUB_APP_PRIVATE_KEY_PATH
+              value: "/etc/secrets/github/github_app_pem"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-secret
+                  key: openai_api_key
+            - name: MONGO_DB_URI
+              value: "mongodb://mongodb:27017"
+          volumeMounts:
+            - name: github-app-key
+              mountPath: /etc/secrets/github
+              readOnly: true
+      volumes:
+        - name: github-app-key
+          secret:
+            secretName: github-secret
